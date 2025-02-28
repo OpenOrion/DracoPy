@@ -179,6 +179,9 @@ namespace DracoFunctions {
           meshObject.encoding_options_set = true;
       }
     }
+
+
+
     int num_custom_attributes = 0;
     if (metadata && metadata->GetEntryInt("num_custom_attributes", &num_custom_attributes) && num_custom_attributes > 0)
     {
@@ -214,7 +217,14 @@ namespace DracoFunctions {
             {
               if (attr->ConvertValue<float>(attr->mapped_index(v), 1, &attr_val))
               {
-                meshObject.custom_attributes[i][v.value()] = attr_val;
+              meshObject.custom_attributes[i][v.value()] = attr_val;
+                if (v.value() == 0) {
+                std::cout << "Custom attribute " << i << ", point " << v.value() << ": " << attr_val << std::endl;
+                }
+              }
+              else
+              {
+              std::cerr << "Failed to convert custom attribute " << i << ", point " << v.value() << std::endl;
               }
             }
           }
@@ -222,6 +232,9 @@ namespace DracoFunctions {
       }
     }
 
+
+
+    
     if (geotype == draco::EncodedGeometryType::POINT_CLOUD)
     {
       meshObject.decode_status = successful;
@@ -465,6 +478,9 @@ namespace DracoFunctions {
       for (size_t j = 0; j < custom_attr_ids.size(); ++j)
       {
         mesh.attribute(custom_attr_ids[j])->SetAttributeValue(draco::AttributeValueIndex(i), &custom_attributes[j][i]);
+        if (i == 0) {
+          std::cout << "First custom attribute value: " << custom_attributes[j][i] << std::endl;
+        }
       }
     }
     

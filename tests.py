@@ -255,11 +255,34 @@ def test_normals_encoding():
         mesh = DracoPy.decode(draco_file.read())
     
     # Create test normal vectors
-    test_normals = np.array([[1.0, 0.0, 0.0]] * mesh.points.shape[0])
-    
+    test_normals = np.random.random((mesh.points.shape[0], 3))
+
     # Encode with test normals
-    binary = DracoPy.encode(mesh.points, mesh.faces, normals=test_normals)
-    
+    binary = DracoPy.encode(mesh.points, mesh.faces, normals=test_normals, preserve_order=True)
+
     # Decode and verify normals
     decoded_mesh = DracoPy.decode(binary)
     assert np.allclose(decoded_mesh.normals, test_normals)
+
+
+
+def test_custom_attribute_encoding():
+    # Read reference mesh
+    with open(os.path.join(testdata_directory, "bunny.drc"), 'rb') as draco_file:
+        mesh = DracoPy.decode(draco_file.read())
+    
+    # Create test normal vectors
+    test_pressure = np.random.random(mesh.points.shape[0])
+    
+    # Encode with test normals and custom attribute
+    binary = DracoPy.encode(
+        mesh.points, 
+        mesh.faces, 
+        preserve_order=True,
+        create_metadata=True, 
+        custom_attributes=np.array([test_pressure]), attribute_names=["pressure"]
+    )
+    
+    # Decode and verify normals
+    decoded_mesh = DracoPy.decode(binary)
+    assert np.allclose(decoded_mesh.custom_attributes["pressure"], test_pressure)
