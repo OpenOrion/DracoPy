@@ -3,7 +3,7 @@ from libcpp.vector cimport vector
 from libc.stdint cimport uint8_t, uint32_t
 from libcpp cimport bool
 from libcpp.string cimport string
-
+from libcpp.unordered_map cimport unordered_map
 cimport numpy as cnp
 import numpy as np
 
@@ -32,6 +32,13 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         decoding_status decode_status
         vector[uint8_t] colors
 
+        const vector[vector[float]] custom_attributes
+        const vector[string] attribute_names
+
+        unordered_map[string, string] string_metadata
+        unordered_map[string, vector[double]] double_array_metadata
+        unordered_map[string, vector[int]] int_array_metadata
+
     cdef struct MeshObject:
         vector[float] points
         vector[unsigned int] faces
@@ -52,6 +59,10 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
 
         const vector[vector[float]] custom_attributes
         const vector[string] attribute_names
+
+        unordered_map[string, string] string_metadata
+        unordered_map[string, vector[double]] double_array_metadata
+        unordered_map[string, vector[int]] int_array_metadata
 
     cdef struct EncodedObject:
         vector[unsigned char] buffer
@@ -76,7 +87,10 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         const vector[float] normals,
         const uint8_t has_normals,
         const vector[vector[float]] custom_attributes,
-        const vector[string] attribute_names
+        const vector[string] attribute_names,
+        const unordered_map[string, string] &string_metadata,
+        const unordered_map[string, vector[double]] &double_array_metadata,
+        const unordered_map[string, vector[int]] &int_array_metadata
     ) except +
 
     EncodedObject encode_point_cloud(
@@ -89,5 +103,10 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         const bool create_metadata,
         const int integer_mark,
         const vector[uint8_t] colors,
-        const uint8_t colors_channel
+        const uint8_t colors_channel,
+        const vector[vector[float]] custom_attributes,
+        const vector[string] attribute_names,
+        const unordered_map[string, string] &string_metadata,
+        const unordered_map[string, vector[double]] &double_array_metadata,
+        const unordered_map[string, vector[int]] &int_array_metadata
     ) except +

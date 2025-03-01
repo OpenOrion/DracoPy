@@ -52,6 +52,40 @@ class DracoPointCloud:
         else:
             return None
 
+
+    @property
+    def custom_attributes(self):
+        if 'custom_attributes' in self.data_struct and len(self.data_struct['custom_attributes']) > 0:
+            attrs = {}
+            for i, name in enumerate(self.data_struct['attribute_names']):
+                attrs[name.decode('utf-8')] = np.array(self.data_struct['custom_attributes'][i])
+            return attrs
+        else:
+            return None
+
+
+    @property
+    def metadata(self):
+        """
+        Returns a dictionary containing all metadata stored in the point cloud.
+        This includes string, double array, and int array metadata.
+        """
+        result = {}
+        
+        # String metadata
+        for key, value in self.data_struct['string_metadata'].items():
+            result[key.decode('utf-8')] = value.decode('utf-8')
+        
+        # Double array metadata
+        for key, value in self.data_struct['double_array_metadata'].items():
+            result[key.decode('utf-8')] = np.array(value)
+        
+        # Int array metadata
+        for key, value in self.data_struct['int_array_metadata'].items():
+            result[key.decode('utf-8')] = np.array(value)
+        
+        return result
+
 class DracoMesh(DracoPointCloud):
     @property
     def faces(self):
@@ -73,16 +107,6 @@ class DracoMesh(DracoPointCloud):
         N = len(self.data_struct['points']) // 3
         NC = len(tex_coord_) // N
         return np.array(tex_coord_).reshape((N, NC))
-
-    @property
-    def custom_attributes(self):
-        if 'custom_attributes' in self.data_struct and len(self.data_struct['custom_attributes']) > 0:
-            attrs = {}
-            for i, name in enumerate(self.data_struct['attribute_names']):
-                attrs[name.decode('utf-8')] = np.array(self.data_struct['custom_attributes'][i])
-            return attrs
-        else:
-            return None
 
 class EncodingOptions(object):
     def __init__(self, quantization_bits, quantization_range, quantization_origin):
@@ -130,7 +154,8 @@ def encode(
     quantization_range=-1, quantization_origin=None,
     create_metadata=False, preserve_order=False,
     colors=None, tex_coord=None, normals=None,
-    custom_attributes=None, attribute_names=None
+    custom_attributes: Optional[Dict[str, np.ndarray]] = None,
+    metadata: Optional[Dict[str, Union[str, np.ndarray]]] = None
 ) -> bytes:
     """
     bytes encode(
@@ -139,7 +164,7 @@ def encode(
         quantization_range=-1, quantization_origin=None,
         create_metadata=False, preserve_order=False,
         colors=None, tex_coord=None, normals=None,
-        custom_attributes=None, attribute_names=None
+        custom_attributes=None, metadata=None
     )
 
     Encode a list or numpy array of points/vertices (float) and faces
@@ -165,9 +190,11 @@ def encode(
         vertices. Use None if mesh does not have texture coordinates.
     Normals is a numpy array of normal vectors (float) with shape (N, 3). N is the number of
         vertices. Use None if mesh does not have normal vectors.
-    Custom_attributes is a list of numpy arrays of custom attribute values (float) with shape (N,).
-        N is the number of vertices. Each array corresponds to one custom attribute.
-    Attribute_names is a list of strings specifying names for each custom attribute.
+    Custom_attributes is a dictionary of numpy arrays of custom attribute values (float) with shape (N,).
+        N is the number of vertices. Each key-value pair corresponds to one custom attribute.
+    Metadata is a dictionary where keys are strings and values can be strings or numpy arrays.
+        String values are stored as string metadata, numpy integer arrays as int arrays, and
+        numpy float arrays as double arrays. The type of each value determines how it's stored.
     """
     assert 0 <= compression_level <= 10, "Compression level must be in range [0, 10]"
 
@@ -203,6 +230,9 @@ def encode(
     cdef vector[float] normalsview
     cdef vector[vector[float]] custom_attrib_view
     cdef vector[string] attrib_names_view
+    cdef unordered_map[string, string] string_metadata
+    cdef unordered_map[string, vector[double]] double_array_metadata
+    cdef unordered_map[string, vector[int]] int_array_metadata
 
     colors_channel = 0
     if colors is not None:
@@ -229,23 +259,42 @@ def encode(
         
     # Handle custom attributes
     if custom_attributes is not None:
-        assert attribute_names is not None, "Must provide attribute_names with custom_attributes"
-        assert len(custom_attributes) == len(attribute_names), "Number of custom attributes must match number of attribute names"
-        
-        for i, (name, values) in enumerate(zip(attribute_names, custom_attributes)):
-            assert isinstance(name, str), f"Attribute name at index {i} must be a string"
+        for name, values in custom_attributes.items():
+            assert isinstance(name, str), f"Attribute name '{name}' must be a string"
             attr_values = np.asarray(values, dtype=np.float32)
-            assert len(attr_values) == len(points), f"Attribute '{name}' must have same length as points"
             
             custom_attrib_view.push_back(attr_values)
             attrib_names_view.push_back(name.encode('utf-8'))
-
+    
+    # Handle metadata - automatically sort by type
+    if metadata is not None:
+        for key, value in metadata.items():
+            encoded_key = key.encode('utf-8')
+            
+            if isinstance(value, str):
+                # String metadata
+                string_metadata[encoded_key] = value.encode('utf-8')
+            elif isinstance(value, (np.ndarray, list, tuple)):
+                # Convert to numpy array if not already
+                arr = np.asarray(value)
+                
+                if np.issubdtype(arr.dtype, np.integer):
+                    # Integer array metadata
+                    int_array_metadata[encoded_key] = arr.flatten().astype(np.int32)
+                else:
+                    # Float/double array metadata
+                    double_array_metadata[encoded_key] = arr.flatten().astype(np.float64)
+            else:
+                raise TypeError(f"Metadata value for key '{key}' must be a string, list, or numpy array")
+    
     if faces is None:
         encoded = DracoPy.encode_point_cloud(
             pointsview, quantization_bits, compression_level,
             quantization_range, <float*>&quant_origin[0],
             preserve_order, create_metadata, integer_mark,
-            colorsview, colors_channel
+            colorsview, colors_channel,
+            custom_attrib_view, attrib_names_view,
+            string_metadata, double_array_metadata, int_array_metadata
         )
     else:
         facesview = faces.reshape((faces.size,))
@@ -256,7 +305,8 @@ def encode(
             preserve_order, create_metadata, integer_mark,
             colorsview, colors_channel, texcoordview, tex_coord_channel,
             normalsview, has_normals,
-            custom_attrib_view, attrib_names_view
+            custom_attrib_view, attrib_names_view, 
+            string_metadata, double_array_metadata, int_array_metadata
         )
 
     if encoded.encode_status == DracoPy.encoding_status.successful_encoding:

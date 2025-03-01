@@ -44,6 +44,10 @@ namespace DracoFunctions {
 
     std::vector<std::vector<float>> custom_attributes;
     std::vector<std::string> attribute_names;
+
+    std::unordered_map<std::string, std::string> string_metadata;
+    std::unordered_map<std::string, std::vector<double>> double_array_metadata;
+    std::unordered_map<std::string, std::vector<int>> int_array_metadata;
   };
 
   struct MeshObject : PointCloudObject {
@@ -151,6 +155,8 @@ namespace DracoFunctions {
       meshObject.colors_set = false;
     }
 
+    // Check if the mesh has texture coordinates
+    // If it does, decode them
     const int tex_att_id = mesh->GetNamedAttributeId(draco::GeometryAttribute::TEX_COORD);
     if (tex_att_id >= 0) {
       const auto *const tex_att = mesh->attribute(tex_att_id);
@@ -177,6 +183,44 @@ namespace DracoFunctions {
       if (metadata->GetEntryDouble("quantization_range", &(meshObject.quantization_range)) &&
           metadata->GetEntryDoubleArray("quantization_origin", &(meshObject.quantization_origin))) {
           meshObject.encoding_options_set = true;
+      }
+
+      // Extract string metadata
+      int num_string_metadata = 0;
+      if (metadata->GetEntryInt("num_string_metadata", &num_string_metadata) && num_string_metadata > 0) {
+          for (int i = 0; i < num_string_metadata; i++) {
+              std::string key, value;
+              if (metadata->GetEntryString("str_meta_key_" + std::to_string(i), &key) &&
+                  metadata->GetEntryString("str_meta_val_" + std::to_string(i), &value)) {
+                  meshObject.string_metadata[key] = value;
+              }
+          }
+      }
+      
+      // Extract double array metadata
+      int num_double_array_metadata = 0;
+      if (metadata->GetEntryInt("num_double_array_metadata", &num_double_array_metadata) && num_double_array_metadata > 0) {
+          for (int i = 0; i < num_double_array_metadata; i++) {
+              std::string key;
+              std::vector<double> value;
+              if (metadata->GetEntryString("dbl_arr_meta_key_" + std::to_string(i), &key) &&
+                  metadata->GetEntryDoubleArray("dbl_arr_meta_val_" + std::to_string(i), &value)) {
+                  meshObject.double_array_metadata[key] = value;
+              }
+          }
+      }
+      
+      // Extract int array metadata
+      int num_int_array_metadata = 0;
+      if (metadata->GetEntryInt("num_int_array_metadata", &num_int_array_metadata) && num_int_array_metadata > 0) {
+          for (int i = 0; i < num_int_array_metadata; i++) {
+              std::string key;
+              std::vector<int> value;
+              if (metadata->GetEntryString("int_arr_meta_key_" + std::to_string(i), &key) &&
+                  metadata->GetEntryIntArray("int_arr_meta_val_" + std::to_string(i), &value)) {
+                  meshObject.int_array_metadata[key] = value;
+              }
+            }
       }
     }
 
@@ -232,9 +276,10 @@ namespace DracoFunctions {
       }
     }
 
-
-
     
+
+
+
     if (geotype == draco::EncodedGeometryType::POINT_CLOUD)
     {
       meshObject.decode_status = successful;
@@ -285,9 +330,11 @@ namespace DracoFunctions {
     const float *quantization_origin,
     bool create_metadata,
     const std::vector<std::string> &attribute_names = std::vector<std::string>(),
-    const std::vector<int> &custom_attr_ids = std::vector<int>()
-)
-  {
+    const std::vector<int> &custom_attr_ids = std::vector<int>(),
+    const std::unordered_map<std::string, std::string> &string_metadata = std::unordered_map<std::string, std::string>(),
+    const std::unordered_map<std::string, std::vector<double>> &double_array_metadata = std::unordered_map<std::string, std::vector<double>>(),
+    const std::unordered_map<std::string, std::vector<int>> &int_array_metadata = std::unordered_map<std::string, std::vector<int>>()
+) {
     int speed = 10 - compression_level;
     encoder.SetSpeedOptions(speed, speed);
     std::unique_ptr<draco::GeometryMetadata> metadata = std::unique_ptr<draco::GeometryMetadata>(new draco::GeometryMetadata());
@@ -307,6 +354,8 @@ namespace DracoFunctions {
         metadata->AddEntryDoubleArray("quantization_origin", quantization_origin_vec);
       }
     }
+
+    
     if (create_metadata) {
       metadata->AddEntryInt("quantization_bits", quantization_bits);
       if (!attribute_names.empty() && !custom_attr_ids.empty())
@@ -318,9 +367,43 @@ namespace DracoFunctions {
         }
         metadata->AddEntryInt("num_custom_attributes", static_cast<int>(attribute_names.size()));
       }
-      point_cloud_or_mesh->AddMetadata(std::move(metadata));
+      
+        // Add string metadata
+        if (!string_metadata.empty()) {
+            metadata->AddEntryInt("num_string_metadata", static_cast<int>(string_metadata.size()));
+            int idx = 0;
+            for (const auto& pair : string_metadata) {
+                metadata->AddEntryString("str_meta_key_" + std::to_string(idx), pair.first);
+                metadata->AddEntryString("str_meta_val_" + std::to_string(idx), pair.second);
+                idx++;
+            }
+        }
+        
+        // Add double array metadata
+        if (!double_array_metadata.empty()) {
+            metadata->AddEntryInt("num_double_array_metadata", static_cast<int>(double_array_metadata.size()));
+            int idx = 0;
+            for (const auto& pair : double_array_metadata) {
+                metadata->AddEntryString("dbl_arr_meta_key_" + std::to_string(idx), pair.first);
+                metadata->AddEntryDoubleArray("dbl_arr_meta_val_" + std::to_string(idx), pair.second);
+                idx++;
+            }
+        }
+        
+        // Add int array metadata
+        if (!int_array_metadata.empty()) {
+            metadata->AddEntryInt("num_int_array_metadata", static_cast<int>(int_array_metadata.size()));
+            int idx = 0;
+            for (const auto& pair : int_array_metadata) {
+                metadata->AddEntryString("int_arr_meta_key_" + std::to_string(idx), pair.first);
+                metadata->AddEntryIntArray("int_arr_meta_val_" + std::to_string(idx), pair.second);
+                idx++;
+            }
+        }
+        
+        point_cloud_or_mesh->AddMetadata(std::move(metadata));
     }
-  }
+}
 
   EncodedObject encode_mesh(
     const std::vector<float> &points,
@@ -339,7 +422,11 @@ namespace DracoFunctions {
     const std::vector<float> &normals,
     const uint8_t has_normals,
     const std::vector<std::vector<float>> &custom_attributes,
-    const std::vector<std::string> &attribute_names) {
+    const std::vector<std::string> &attribute_names,
+    const std::unordered_map<std::string, std::string> &string_metadata = std::unordered_map<std::string, std::string>(),
+    const std::unordered_map<std::string, std::vector<double>> &double_array_metadata = std::unordered_map<std::string, std::vector<double>>(),
+    const std::unordered_map<std::string, std::vector<int>> &int_array_metadata = std::unordered_map<std::string, std::vector<int>>()
+    ) {
     // @zeruniverse TriangleSoupMeshBuilder will cause problems when
     //    preserve_order=True due to vertices merging.
     //    In order to support preserve_order, we need to build mesh
@@ -478,12 +565,8 @@ namespace DracoFunctions {
       for (size_t j = 0; j < custom_attr_ids.size(); ++j)
       {
         mesh.attribute(custom_attr_ids[j])->SetAttributeValue(draco::AttributeValueIndex(i), &custom_attributes[j][i]);
-        if (i == 0) {
-          std::cout << "First custom attribute value: " << custom_attributes[j][i] << std::endl;
-        }
       }
     }
-    
 
     // Process faces
     const size_t num_faces = faces.size() / 3;
@@ -504,7 +587,10 @@ namespace DracoFunctions {
         &mesh, encoder, compression_level,
         quantization_bits, quantization_range,
         quantization_origin, create_metadata,
-        attribute_names, custom_attr_ids);
+        attribute_names, custom_attr_ids, string_metadata, 
+        double_array_metadata, int_array_metadata
+    );
+  
     if (preserve_order)
     {
       encoder.SetEncodingMethod(draco::MESH_SEQUENTIAL_ENCODING);
@@ -532,7 +618,12 @@ namespace DracoFunctions {
     const float *quantization_origin, const bool preserve_order,
     const bool create_metadata, const int integer_mark,
     const std::vector<uint8_t> &colors,
-    const uint8_t colors_channel
+    const uint8_t colors_channel,
+    const std::vector<std::vector<float>> &custom_attributes,
+    const std::vector<std::string> &attribute_names,
+    const std::unordered_map<std::string, std::string> &string_metadata = std::unordered_map<std::string, std::string>(),
+    const std::unordered_map<std::string, std::vector<double>> &double_array_metadata = std::unordered_map<std::string, std::vector<double>>(),
+    const std::unordered_map<std::string, std::vector<int>> &int_array_metadata = std::unordered_map<std::string, std::vector<int>>()
   ) {
     int num_points = points.size() / 3;
     draco::PointCloudBuilder pcb;
@@ -564,13 +655,44 @@ namespace DracoFunctions {
       }
     }
 
+    // Add custom attributes
+    std::vector<int> custom_attr_ids;
+    if (!attribute_names.empty())
+    {
+      // Validate input
+      if (custom_attributes.size() != attribute_names.size())
+      {
+        throw std::runtime_error("Mismatch between custom_attributes and attribute_names sizes");
+      }
+
+      // Add attributes
+      for (size_t i = 0; i < attribute_names.size(); ++i)
+      {
+        const int attr_id = pcb.AddAttribute(
+            draco::GeometryAttribute::GENERIC, 1, draco::DT_FLOAT32
+        );
+        custom_attr_ids.push_back(attr_id);
+      }
+
+      // Set custom attribute values
+      for (draco::PointIndex i(0); i < num_points; i++) {
+        for (size_t j = 0; j < custom_attr_ids.size(); ++j) {
+          pcb.SetAttributeValueForPoint(custom_attr_ids[j], i, custom_attributes[j].data() + i.value());
+        }
+      }
+    }
+
     std::unique_ptr<draco::PointCloud> ptr_point_cloud = pcb.Finalize(!preserve_order);
     draco::PointCloud *point_cloud = ptr_point_cloud.get();
     draco::Encoder encoder;
     setup_encoder_and_metadata(
         point_cloud, encoder, compression_level,
         quantization_bits, quantization_range,
-        quantization_origin, create_metadata);
+        quantization_origin, create_metadata, 
+        attribute_names, custom_attr_ids,
+        string_metadata, double_array_metadata, int_array_metadata
+    );
+
     if (preserve_order)
     {
       encoder.SetEncodingMethod(draco::POINT_CLOUD_SEQUENTIAL_ENCODING);

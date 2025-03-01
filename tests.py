@@ -266,7 +266,7 @@ def test_normals_encoding():
 
 
 
-def test_custom_attribute_encoding():
+def test_mesh_custom_attribute_encoding():
     # Read reference mesh
     with open(os.path.join(testdata_directory, "bunny.drc"), 'rb') as draco_file:
         mesh = DracoPy.decode(draco_file.read())
@@ -275,14 +275,110 @@ def test_custom_attribute_encoding():
     test_pressure = np.random.random(mesh.points.shape[0])
     
     # Encode with test normals and custom attribute
+    custom_attributes = {
+        "pressure": test_pressure
+    }
     binary = DracoPy.encode(
         mesh.points, 
         mesh.faces, 
         preserve_order=True,
         create_metadata=True, 
-        custom_attributes=np.array([test_pressure]), attribute_names=["pressure"]
+        custom_attributes=custom_attributes
     )
     
     # Decode and verify normals
     decoded_mesh = DracoPy.decode(binary)
     assert np.allclose(decoded_mesh.custom_attributes["pressure"], test_pressure)
+
+
+def test_point_cloud_custom_attribute_encoding():
+    # Read reference mesh
+    with open(os.path.join(testdata_directory, "bunny.drc"), 'rb') as draco_file:
+        mesh = DracoPy.decode(draco_file.read())
+    
+    # Create test normal vectors
+    test_pressure = np.random.random(mesh.points.shape[0])
+    
+    # Encode with test normals and custom attribute
+    custom_attributes = {
+        "pressure": test_pressure
+    }
+    binary = DracoPy.encode(
+        mesh.points, 
+        preserve_order=True,
+        create_metadata=True, 
+        custom_attributes=custom_attributes
+    )
+    
+    # Decode and verify normals
+    decoded_point_cloud = DracoPy.decode(binary)
+    assert np.allclose(decoded_point_cloud.custom_attributes["pressure"], test_pressure)
+
+
+def test_string_metadata_encoding_decoding():
+    """Test encoding and decoding with string metadata."""
+    # Read reference mesh
+    with open(os.path.join(testdata_directory, "bunny.drc"), 'rb') as draco_file:
+        mesh = DracoPy.decode(draco_file.read())
+    
+    # Create test metadata
+    test_metadata = {
+        "name": "Stanford Bunny",
+        "author": "Stanford University",
+        "description": "Low-poly Stanford Bunny model with metadata",
+        "source": "Stanford 3D Scanning Repository",
+        "license": "Freely available for non-commercial use"
+    }
+    
+    # Encode with metadata
+    binary = DracoPy.encode(
+        mesh.points, 
+        mesh.faces, 
+        create_metadata=True,
+        metadata=test_metadata
+    )
+    
+    # Decode and verify metadata
+    decoded_mesh = DracoPy.decode(binary)
+    
+    # Check if all metadata is present
+    for key, value in test_metadata.items():
+        assert key in decoded_mesh.metadata, f"Metadata key '{key}' not found"
+        assert decoded_mesh.metadata[key] == value, f"Metadata value for '{key}' doesn't match"
+
+
+def test_numeric_array_metadata_encoding_decoding():
+    """Test encoding and decoding with numeric array metadata."""
+    # Read reference mesh
+    with open(os.path.join(testdata_directory, "bunny.drc"), 'rb') as draco_file:
+        mesh = DracoPy.decode(draco_file.read())
+    
+    # Create test numeric metadata
+    test_metadata = {
+        "bounding_box": np.array([-1.0, -1.0, -1.0, 1.0, 1.0, 1.0], dtype=np.float64),
+        "vertex_weights": np.random.random(mesh.points.shape[0]).astype(np.float32),
+        "face_groups": np.random.randint(0, 5, mesh.faces.shape[0], dtype=np.int32),
+        "importance_values": np.array([0.1, 0.5, 0.9, 1.0], dtype=np.float64)
+    }
+    
+    # Encode with metadata
+    binary = DracoPy.encode(
+        mesh.points, 
+        mesh.faces, 
+        create_metadata=True,
+        metadata=test_metadata
+    )
+    
+    # Decode and verify metadata
+    decoded_mesh = DracoPy.decode(binary)
+    
+    # Check if all metadata is present and correct
+    for key, value in test_metadata.items():
+        assert key in decoded_mesh.metadata, f"Metadata key '{key}' not found"
+        np.testing.assert_allclose(
+            decoded_mesh.metadata[key], 
+            value.flatten() if value.ndim > 1 else value, 
+            rtol=1e-5, 
+            err_msg=f"Metadata array '{key}' doesn't match original"
+        )
+
