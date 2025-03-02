@@ -36,6 +36,7 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         const vector[string] attribute_names
 
         unordered_map[string, string] string_metadata
+        unordered_map[string, vector[double]] string_array_metadata
         unordered_map[string, vector[double]] double_array_metadata
         unordered_map[string, vector[int]] int_array_metadata
 
@@ -61,6 +62,7 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         const vector[string] attribute_names
 
         unordered_map[string, string] string_metadata
+        unordered_map[string, vector[string]] string_array_metadata
         unordered_map[string, vector[double]] double_array_metadata
         unordered_map[string, vector[int]] int_array_metadata
 
@@ -89,6 +91,7 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         const vector[vector[float]] custom_attributes,
         const vector[string] attribute_names,
         const unordered_map[string, string] &string_metadata,
+        const unordered_map[string, vector[string]] &string_array_metadata,
         const unordered_map[string, vector[double]] &double_array_metadata,
         const unordered_map[string, vector[int]] &int_array_metadata
     ) except +
@@ -107,6 +110,7 @@ cdef extern from "DracoPy.h" namespace "DracoFunctions":
         const vector[vector[float]] custom_attributes,
         const vector[string] attribute_names,
         const unordered_map[string, string] &string_metadata,
+        const unordered_map[string, vector[string]] &string_array_metadata,
         const unordered_map[string, vector[double]] &double_array_metadata,
         const unordered_map[string, vector[int]] &int_array_metadata
     ) except +

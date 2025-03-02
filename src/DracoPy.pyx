@@ -75,7 +75,11 @@ class DracoPointCloud:
         # String metadata
         for key, value in self.data_struct['string_metadata'].items():
             result[key.decode('utf-8')] = value.decode('utf-8')
-        
+
+        # String array metadata
+        for key, value in self.data_struct['string_array_metadata'].items():
+            result[key.decode('utf-8')] = [item.decode('utf-8') for item in value]
+
         # Double array metadata
         for key, value in self.data_struct['double_array_metadata'].items():
             result[key.decode('utf-8')] = np.array(value)
@@ -155,7 +159,7 @@ def encode(
     create_metadata=False, preserve_order=False,
     colors=None, tex_coord=None, normals=None,
     custom_attributes: Optional[Dict[str, np.ndarray]] = None,
-    metadata: Optional[Dict[str, Union[str, np.ndarray]]] = None
+    metadata: Optional[Dict[str, Union[str, list[str], np.ndarray]]] = None
 ) -> bytes:
     """
     bytes encode(
@@ -231,6 +235,7 @@ def encode(
     cdef vector[vector[float]] custom_attrib_view
     cdef vector[string] attrib_names_view
     cdef unordered_map[string, string] string_metadata
+    cdef unordered_map[string, vector[string]] string_array_metadata
     cdef unordered_map[string, vector[double]] double_array_metadata
     cdef unordered_map[string, vector[int]] int_array_metadata
 
@@ -274,6 +279,9 @@ def encode(
             if isinstance(value, str):
                 # String metadata
                 string_metadata[encoded_key] = value.encode('utf-8')
+            elif isinstance(value, list) and all(isinstance(item, str) for item in value):
+                # String array metadata
+                string_array_metadata[encoded_key] = [item.encode('utf-8') for item in value]
             elif isinstance(value, (np.ndarray, list, tuple)):
                 # Convert to numpy array if not already
                 arr = np.asarray(value)
@@ -285,7 +293,7 @@ def encode(
                     # Float/double array metadata
                     double_array_metadata[encoded_key] = arr.flatten().astype(np.float64)
             else:
-                raise TypeError(f"Metadata value for key '{key}' must be a string, list, or numpy array")
+                raise TypeError(f"Metadata value for key '{key}' must be a string, list of strings, list, or numpy array")
     
     if faces is None:
         encoded = DracoPy.encode_point_cloud(
@@ -294,7 +302,7 @@ def encode(
             preserve_order, create_metadata, integer_mark,
             colorsview, colors_channel,
             custom_attrib_view, attrib_names_view,
-            string_metadata, double_array_metadata, int_array_metadata
+            string_metadata, string_array_metadata, double_array_metadata, int_array_metadata
         )
     else:
         facesview = faces.reshape((faces.size,))
@@ -306,7 +314,7 @@ def encode(
             colorsview, colors_channel, texcoordview, tex_coord_channel,
             normalsview, has_normals,
             custom_attrib_view, attrib_names_view, 
-            string_metadata, double_array_metadata, int_array_metadata
+            string_metadata, string_array_metadata, double_array_metadata, int_array_metadata
         )
 
     if encoded.encode_status == DracoPy.encoding_status.successful_encoding:

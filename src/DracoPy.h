@@ -46,6 +46,7 @@ namespace DracoFunctions {
     std::vector<std::string> attribute_names;
 
     std::unordered_map<std::string, std::string> string_metadata;
+    std::unordered_map<std::string, std::vector<std::string>> string_array_metadata;
     std::unordered_map<std::string, std::vector<double>> double_array_metadata;
     std::unordered_map<std::string, std::vector<int>> int_array_metadata;
   };
@@ -197,6 +198,20 @@ namespace DracoFunctions {
           }
       }
       
+      // Extract string array metadata
+      int num_string_array_metadata = 0;
+      if (metadata->GetEntryInt("num_string_array_metadata", &num_string_array_metadata) && num_string_array_metadata > 0) {
+          for (int i = 0; i < num_string_array_metadata; i++) {
+              std::string key;
+              std::vector<std::string> value;
+              if (metadata->GetEntryString("str_arr_meta_key_" + std::to_string(i), &key) &&
+                  metadata->GetEntryStringArray("str_arr_meta_val_" + std::to_string(i), &value)) {
+                  meshObject.string_array_metadata[key] = value;
+              }
+          }
+      }
+      
+
       // Extract double array metadata
       int num_double_array_metadata = 0;
       if (metadata->GetEntryInt("num_double_array_metadata", &num_double_array_metadata) && num_double_array_metadata > 0) {
@@ -261,14 +276,7 @@ namespace DracoFunctions {
             {
               if (attr->ConvertValue<float>(attr->mapped_index(v), 1, &attr_val))
               {
-              meshObject.custom_attributes[i][v.value()] = attr_val;
-                if (v.value() == 0) {
-                std::cout << "Custom attribute " << i << ", point " << v.value() << ": " << attr_val << std::endl;
-                }
-              }
-              else
-              {
-              std::cerr << "Failed to convert custom attribute " << i << ", point " << v.value() << std::endl;
+                meshObject.custom_attributes[i][v.value()] = attr_val;
               }
             }
           }
@@ -332,6 +340,7 @@ namespace DracoFunctions {
     const std::vector<std::string> &attribute_names = std::vector<std::string>(),
     const std::vector<int> &custom_attr_ids = std::vector<int>(),
     const std::unordered_map<std::string, std::string> &string_metadata = std::unordered_map<std::string, std::string>(),
+    const std::unordered_map<std::string, std::vector<std::string>> &string_array_metadata = std::unordered_map<std::string, std::vector<std::string>>(),
     const std::unordered_map<std::string, std::vector<double>> &double_array_metadata = std::unordered_map<std::string, std::vector<double>>(),
     const std::unordered_map<std::string, std::vector<int>> &int_array_metadata = std::unordered_map<std::string, std::vector<int>>()
 ) {
@@ -378,7 +387,18 @@ namespace DracoFunctions {
                 idx++;
             }
         }
-        
+
+        // Add double array metadata
+        if (!string_array_metadata.empty()) {
+          metadata->AddEntryInt("num_string_array_metadata", static_cast<int>(string_array_metadata.size()));
+          int idx = 0;
+          for (const auto& pair : string_array_metadata) {
+              metadata->AddEntryString("str_arr_meta_key_" + std::to_string(idx), pair.first);
+              metadata->AddEntryStringArray("str_arr_meta_val_" + std::to_string(idx), pair.second);
+              idx++;
+          }
+      }
+
         // Add double array metadata
         if (!double_array_metadata.empty()) {
             metadata->AddEntryInt("num_double_array_metadata", static_cast<int>(double_array_metadata.size()));
@@ -424,6 +444,7 @@ namespace DracoFunctions {
     const std::vector<std::vector<float>> &custom_attributes,
     const std::vector<std::string> &attribute_names,
     const std::unordered_map<std::string, std::string> &string_metadata = std::unordered_map<std::string, std::string>(),
+    const std::unordered_map<std::string, std::vector<std::string>> &string_array_metadata = std::unordered_map<std::string, std::vector<std::string>>(),
     const std::unordered_map<std::string, std::vector<double>> &double_array_metadata = std::unordered_map<std::string, std::vector<double>>(),
     const std::unordered_map<std::string, std::vector<int>> &int_array_metadata = std::unordered_map<std::string, std::vector<int>>()
     ) {
@@ -588,7 +609,7 @@ namespace DracoFunctions {
         quantization_bits, quantization_range,
         quantization_origin, create_metadata,
         attribute_names, custom_attr_ids, string_metadata, 
-        double_array_metadata, int_array_metadata
+        string_array_metadata, double_array_metadata, int_array_metadata
     );
   
     if (preserve_order)
@@ -622,6 +643,7 @@ namespace DracoFunctions {
     const std::vector<std::vector<float>> &custom_attributes,
     const std::vector<std::string> &attribute_names,
     const std::unordered_map<std::string, std::string> &string_metadata = std::unordered_map<std::string, std::string>(),
+    const std::unordered_map<std::string, std::vector<std::string>> &string_array_metadata = std::unordered_map<std::string, std::vector<std::string>>(),
     const std::unordered_map<std::string, std::vector<double>> &double_array_metadata = std::unordered_map<std::string, std::vector<double>>(),
     const std::unordered_map<std::string, std::vector<int>> &int_array_metadata = std::unordered_map<std::string, std::vector<int>>()
   ) {
@@ -689,8 +711,8 @@ namespace DracoFunctions {
         point_cloud, encoder, compression_level,
         quantization_bits, quantization_range,
         quantization_origin, create_metadata, 
-        attribute_names, custom_attr_ids,
-        string_metadata, double_array_metadata, int_array_metadata
+        attribute_names, custom_attr_ids, string_metadata, 
+        string_array_metadata, double_array_metadata, int_array_metadata
     );
 
     if (preserve_order)

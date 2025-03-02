@@ -346,6 +346,33 @@ def test_string_metadata_encoding_decoding():
         assert key in decoded_mesh.metadata, f"Metadata key '{key}' not found"
         assert decoded_mesh.metadata[key] == value, f"Metadata value for '{key}' doesn't match"
 
+def test_string_array_metadata_encoding_decoding():
+    """Test encoding and decoding with string array metadata."""
+    # Read reference mesh
+    with open(os.path.join(testdata_directory, "bunny.drc"), 'rb') as draco_file:
+        mesh = DracoPy.decode(draco_file.read())
+    
+    # Create test string array metadata
+    test_metadata = {
+        "tags": ["bunny", "3d model", "test", "metadata"]
+    }
+    
+    # Encode with metadata
+    binary = DracoPy.encode(
+        mesh.points, 
+        mesh.faces, 
+        create_metadata=True,
+        metadata=test_metadata
+    )
+    
+    # Decode and verify metadata
+    decoded_mesh = DracoPy.decode(binary)
+    
+    # Check if all metadata is present
+    for key, value in test_metadata.items():
+        assert key in decoded_mesh.metadata, f"Metadata key '{key}' not found"
+        assert decoded_mesh.metadata[key] == value, f"Metadata value for '{key}' doesn't match"
+
 
 def test_numeric_array_metadata_encoding_decoding():
     """Test encoding and decoding with numeric array metadata."""
